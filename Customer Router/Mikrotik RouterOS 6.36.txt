@@ -1,0 +1,325 @@
+! Amazon Web Services
+! Virtual Private Cloud
+
+==============================================================================
+VPN Connection Configuration
+==============================================================================
+
+! AWS utilizes unique identifiers to manipulate the configuration of
+! a VPN Connection. Each VPN Connection is assigned an identifier and is
+! associated with two other identifiers, namely the
+! Customer Gateway Identifier and Virtual Private Gateway Identifier.
+
+! Your VPN Connection ID             : vpn-09d8d80c00c860bf8
+! Your Virtual Private Gateway ID    : vgw-08381058d0985feb1
+! Your Customer Gateway ID           : cgw-0a9d0fc3023df0477
+
+! This configuration consists of two tunnels. Both tunnels must be configured on your Customer Gateway, but only one of those tunnels should be up at any given time.
+! Note that Mikrotik RouterOs does not support Active/Active or Active/Standby setup with AWS hosted VPN solution.
+
+! At this time this configuration has only been tested for RouterOS 6.36, but may work with other versions.
+
+! This configuration uses the Winbox utility to configure the IPsec VPN connection. Winbox is a small utility that allows administration of Mikrotik RouterOS using a fast and simple GUI.
+! You can download this utility from: https://mikrotik.com/download
+
+==============================================================================
+! IPSec Tunnel #1
+==============================================================================
+
+! #1: IPSec Proposal Configuration
+!
+! An IPsec proposal defines the IPsec parameters for encryption, authentication, Diffie-Hellman, and lifetime.
+! Please note, these sample configurations are for the minimum requirement of AES128, SHA1, and DH Group 2.
+! Category "VPN" connections in the GovCloud region have a minimum requirement of AES128, SHA2, and DH Group 14.
+! You will need to modify these sample configuration files to take advantage of AES256, SHA256,  or other DH
+! groups like 2, 14-18, 22, 23, and 24.
+! Higher parameters are only available for VPNs of category "VPN," and not for "VPN-Classic".
+
+Go to IP Tab --> IPsec --> Proposals
+
+      a. Click on "+" button
+      b. Name: ipsec-vpn-09d8d80c00c860bf8-0
+      c. Auth. Algorithms: sha1
+      d. Encr. Algorithms: aes-128-cbc
+      e. Lifetime: 01:00:00
+      f. PFS Group: modp1024
+      g. Select Apply and Ok
+
+!---------------------------------------------------------------------------------
+! #2: Internet Key Exchange
+!
+! A policy is established for the supported ISAKMP encryption, authentication, Diffie-Hellman, lifetime,
+! and key parameters. The IKE peer is configured with the supported IKE encryption,  authentication, Diffie-Hellman, lifetime, and key
+! parameters.Please note, these sample configurations are for the minimum requirement of AES128, SHA1, and DH Group 2.
+! Category "VPN" connections in the GovCloud region have a minimum requirement of AES128, SHA2, and DH Group 14.
+! You will need to modify these sample configuration files to take advantage of AES256, SHA256,  or other DH
+! groups like 2, 14-18, 22, 23, and 24.
+! NOTE: If you customized tunnel options when creating or modifying your VPN connection, you may need to modify these sample configurations to match the custom settings for your tunnels.
+!
+! Higher parameters are only available for VPNs of category "VPN," and not for "VPN-Classic".
+! The address of the external interface for your customer gateway must be a static address.
+! Your customer gateway may reside behind a device performing network address translation (NAT). To
+! ensure that NAT traversal (NAT-T) can function, you must use the corresponding IP as the "Local Address".
+
+! Create an IKE policy permitting traffic from your local subnet to the VPC subnet.
+
+Go to IP Tab --> IPsec --> Policies
+
+1) Click on "+" button and select the General Tab
+      a. Src. Address: local subnet/mask
+      b. Dst. Address: AWS VPC subnet/mask
+
+2) Click on Action Tab
+      a. Select Tunnel
+      b. SA Src. Address: 100.100.20.20
+      c. SA Dst. Address: 52.48.131.158
+      d. Proposal: ipsec-vpn-09d8d80c00c860bf8-0
+      e. Select Apply and Ok
+
+! Create an IKE policy permitting traffic from the Inside IP associated with your Customer Gateway to the inside IP associated with the Virtual Private Gateway.
+
+Go to IP Tab --> IPsec --> Policies
+
+3) Click on "+" button and select the General Tab
+      a. Src. Address: 169.254.33.90
+      b. Dst. Address: 169.254.33.89
+
+4) Click on Action Tab
+      a. Select Tunnel
+      b. SA Src. Address: 100.100.20.20
+      c. SA Dst. Address: 52.48.131.158
+      d. Proposal: ipsec-vpn-09d8d80c00c860bf8-0
+      e. Select Apply and Ok
+Go to IP Tab --> IPsec --> Peers
+
+5) Click on "+" button
+      a. Address: 52.48.131.158
+      b. Local Address: 100.100.20.20
+      c. Secret: 1234567890abcdefghijklmn
+      d. Hash Algorith: sha1
+      e. Encryption Algorithm: aes-128
+      d. DH Group: modp1024
+      f. Lifetime: 08:00:00
+      g. DPD Interval: 10
+      h. DPD Maximum Failures: 3
+      i. Select Apply and Ok
+
+! ----------------------------------------------------------------------------
+! #3: Tunnel Interface Configuration
+!
+! A tunnel interface is configured to be the logical interface associated
+! with the tunnel. All traffic routed to the tunnel interface will be
+! encrypted and transmitted to the VPC. Similarly, traffic from the VPC
+! will be logically received on this interface.
+! The address of the interface is configured with the setup for your
+! Customer Gateway. If the address changes, the Customer Gateway and VPN
+! Connection must be recreated with Amazon VPC.
+
+Go to IP Tab --> Addresses
+
+      a. Click on "+" button
+      b. Address: 169.254.33.90/30
+      b. Interface: Select the WAN/Outside interface
+      c. Select Apply and Ok
+
+! ----------------------------------------------------------------------------
+! #4 Static Route Configuration
+!
+! Your Customer Gateway needs to set a static route for the prefix corresponding to your
+! VPC to send traffic over the tunnel interface.
+! An example for a VPC with a subnet/mask of 10.0.0.0/16 is provided below:
+
+Go to IP Tab --> Routes
+
+      a. Click on "+" button and select the General Tab
+      b. Dst. Address: 10.0.0.0/16
+      c. Gateway: 169.254.33.89
+      d. Select Apply and Ok
+
+! ----------------------------------------------------------------------------
+! #5: NAT Exemption
+!
+! If you are performing NAT on your Customer Gateway, you may have to add a nat exemption rule to permit traffic from your local subnet to the VPC subnet and vice versa.
+! This example rule permits all traffic from the local subnet to the VPC subnet.
+
+Go to IP Tab --> Firewall --> NAT
+
+1) Click on "+" button and select the General Tab
+      a. Chain: srcnat
+      b. Src. Address: local subnet/mask
+      c. Dst. Address: AWS VPC subnet/mask
+
+2) Click on Action Tab
+      a. Action = accept
+      b. Select Apply and Ok
+
+! Similarly, create a firewall rule permitting traffic from the Inside IP associated with your Customer Gateway to the  IP associated with the Virtual Private Gateway.
+
+3) Click on "+" button and select the General Tab
+      a. Chain: srcnat
+      b. Src. Address: 169.254.33.90
+      c. Dst. Address: 169.254.33.89
+
+4) Click on Action Tab
+      a. Action = accept
+      b. Select Apply and Ok
+
+! Note that there may be multiple firewall rules configured on your Customer Gateway. These rules may be conflicting with the nat exemption rule.
+! It is recommended to position the nat exemption rules such that they are evaluated in an order before any other conflicting policy.
+
+==============================================================================
+! IPSec Tunnel #2
+==============================================================================
+
+! #1: IPSec Proposal Configuration
+!
+! An IPsec proposal defines the IPsec parameters for encryption, authentication, Diffie-Hellman, and lifetime.
+! Please note, these sample configurations are for the minimum requirement of AES128, SHA1, and DH Group 2.
+! Category "VPN" connections in the GovCloud region have a minimum requirement of AES128, SHA2, and DH Group 14.
+! You will need to modify these sample configuration files to take advantage of AES256, SHA256,  or other DH
+! groups like 2, 14-18, 22, 23, and 24.
+! Higher parameters are only available for VPNs of category "VPN," and not for "VPN-Classic".
+
+Go to IP Tab --> IPsec --> Proposals
+
+      a. Click on "+" button
+      b. Name: ipsec-vpn-09d8d80c00c860bf8-1
+      c. Auth. Algorithms: sha1
+      d. Encr. Algorithms: aes-128-cbc
+      e. Lifetime: 01:00:00
+      f. PFS Group: modp1024
+      g. Select Apply and Ok
+
+!---------------------------------------------------------------------------------
+! #2: Internet Key Exchange
+!
+! A policy is established for the supported ISAKMP encryption, authentication, Diffie-Hellman, lifetime,
+! and key parameters. The IKE peer is configured with the supported IKE encryption,  authentication, Diffie-Hellman, lifetime, and key
+! parameters.Please note, these sample configurations are for the minimum requirement of AES128, SHA1, and DH Group 2.
+! Category "VPN" connections in the GovCloud region have a minimum requirement of AES128, SHA2, and DH Group 14.
+! You will need to modify these sample configuration files to take advantage of AES256, SHA256,  or other DH
+! groups like 2, 14-18, 22, 23, and 24.
+! NOTE: If you customized tunnel options when creating or modifying your VPN connection, you may need to modify these sample configurations to match the custom settings for your tunnels.
+!
+! Higher parameters are only available for VPNs of category "VPN," and not for "VPN-Classic".
+! The address of the external interface for your customer gateway must be a static address.
+! Your customer gateway may reside behind a device performing network address translation (NAT). To
+! ensure that NAT traversal (NAT-T) can function, you must use the corresponding IP as the "Local Address".
+
+! Create an IKE policy permitting traffic from your local subnet to the VPC subnet.
+
+Go to IP Tab --> IPsec --> Policies
+
+1) Click on "+" button and select the General Tab
+      a. Src. Address: local subnet/mask
+      b. Dst. Address: AWS VPC subnet/mask
+
+2) Click on Action Tab
+      a. Select Tunnel
+      b. SA Src. Address: 100.100.20.20
+      c. SA Dst. Address: 63.34.48.87
+      d. Proposal: ipsec-vpn-09d8d80c00c860bf8-1
+      e. Select Apply and Ok
+
+! Create an IKE policy permitting traffic from the Inside IP associated with your Customer Gateway to the inside IP associated with the Virtual Private Gateway.
+
+Go to IP Tab --> IPsec --> Policies
+
+3) Click on "+" button and select the General Tab
+      a. Src. Address: 169.254.33.102
+      b. Dst. Address: 169.254.33.101
+
+4) Click on Action Tab
+      a. Select Tunnel
+      b. SA Src. Address: 100.100.20.20
+      c. SA Dst. Address: 63.34.48.87
+      d. Proposal: ipsec-vpn-09d8d80c00c860bf8-1
+      e. Select Apply and Ok
+Go to IP Tab --> IPsec --> Peers
+
+5) Click on "+" button
+      a. Address: 63.34.48.87
+      b. Local Address: 100.100.20.20
+      c. Secret: abcdefghijklmn1234567890
+      d. Hash Algorith: sha1
+      e. Encryption Algorithm: aes-128
+      d. DH Group: modp1024
+      f. Lifetime: 08:00:00
+      g. DPD Interval: 10
+      h. DPD Maximum Failures: 3
+      i. Select Apply and Ok
+
+! ----------------------------------------------------------------------------
+! #3: Tunnel Interface Configuration
+!
+! A tunnel interface is configured to be the logical interface associated
+! with the tunnel. All traffic routed to the tunnel interface will be
+! encrypted and transmitted to the VPC. Similarly, traffic from the VPC
+! will be logically received on this interface.
+! The address of the interface is configured with the setup for your
+! Customer Gateway. If the address changes, the Customer Gateway and VPN
+! Connection must be recreated with Amazon VPC.
+
+Go to IP Tab --> Addresses
+
+      a. Click on "+" button
+      b. Address: 169.254.33.102/30
+      b. Interface: Select the WAN/Outside interface
+      c. Select Apply and Ok
+
+! ----------------------------------------------------------------------------
+! #4 Static Route Configuration
+!
+! Your Customer Gateway needs to set a static route for the prefix corresponding to your
+! VPC to send traffic over the tunnel interface.
+! An example for a VPC with a subnet/mask of 10.0.0.0/16 is provided below:
+
+Go to IP Tab --> Routes
+
+      a. Click on "+" button and select the General Tab
+      b. Dst. Address: 10.0.0.0/16
+      c. Gateway: 169.254.33.101
+      d. Select Apply and Ok
+
+! ----------------------------------------------------------------------------
+! #5: NAT Exemption
+!
+! If you are performing NAT on your Customer Gateway, you may have to add a nat exemption rule to permit traffic from your local subnet to the VPC subnet and vice versa.
+! This example rule permits all traffic from the local subnet to the VPC subnet.
+
+Go to IP Tab --> Firewall --> NAT
+
+1) Click on "+" button and select the General Tab
+      a. Chain: srcnat
+      b. Src. Address: local subnet/mask
+      c. Dst. Address: AWS VPC subnet/mask
+
+2) Click on Action Tab
+      a. Action = accept
+      b. Select Apply and Ok
+
+! Similarly, create a firewall rule permitting traffic from the Inside IP associated with your Customer Gateway to the  IP associated with the Virtual Private Gateway.
+
+3) Click on "+" button and select the General Tab
+      a. Chain: srcnat
+      b. Src. Address: 169.254.33.102
+      c. Dst. Address: 169.254.33.101
+
+4) Click on Action Tab
+      a. Action = accept
+      b. Select Apply and Ok
+
+! Note that there may be multiple firewall rules configured on your Customer Gateway. These rules may be conflicting with the nat exemption rule.
+! It is recommended to position the nat exemption rules such that they are evaluated in an order before any other conflicting policy.
+
+!---------------------------------------------------------------------------------------
+!
+!  Additional Notes and Questions
+!  - Amazon Virtual Private Cloud Getting Started Guide:
+!       http://docs.amazonwebservices.com/AmazonVPC/latest/GettingStartedGuide
+!  - Amazon Virtual Private Cloud Network Administrator Guide:
+!       http://docs.amazonwebservices.com/AmazonVPC/latest/NetworkAdminGuide
+!  - Generic VPN tunnel connectivity Connectivity:
+!       https://aws.amazon.com/premiumsupport/knowledge-center/vpn-tunnel-troubleshooting/
+!
+!---------------------------------------------------------------------------------------
