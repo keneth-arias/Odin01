@@ -1,3 +1,4 @@
+
 variable "cidr"{
     type = string
     default = "10.0.0.0/16"
@@ -8,7 +9,7 @@ variable "private_subnet"{
 }
 variable "ipv4_cidr"{
     type = string
-    default = "10.10.0.0/24"
+    default = "172.16.0.0/24"
 }
 variable "odin_ip"{
     type = string

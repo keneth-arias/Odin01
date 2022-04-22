@@ -12,12 +12,13 @@ Data la complessità delle possibili soluzioni on-prem e la mia mancanza di temp
 La scelta l'ho fatta valutando:
 - Velocitá di deploy
 - Integrazione
-- Scalabilitá
+- Prestazioni
 - Fatturazione
 
-Per la connessione criptata e sicura useró AWS Site-to-site VPN, che collegerá il Gateway Router della rete dove risiede il server Odin01 alla VPC.
-Per la configurazione del Customer Router si possono usare le istruzioni base in [Customer Router\Customer router config.txt](Customer Router\Customer router config.txt).
+Per la connessione criptata e sicura useró AWS Site-to-site VPN, che collegerá il Border Gateway Router della rete dove risiede il server Odin01 alla VPC.
+Per la configurazione del Border Gateway Router si possono usare le istruzioni base in [Customer Router\Customer router config.txt](Customer Router\Customer router config.txt).
 Oppure quelle specifiche per marca e modello del dispositivo che sono scaricabili dal template pre-configurato di AWS VPN Connections.
+
 
 
 
